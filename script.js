@@ -16,9 +16,10 @@ if (form) {
     const telephone = data.get('telephone');
     const service = data.get('service');
     const date = data.get('date');
+    const heure = data.get('heure');
     const message = data.get('message') || 'Aucun détail supplémentaire';
 
-    const whatsappMessage = `Bonjour JA Lab Studio, je souhaite prendre un rendez-vous.%0A%0ANom: ${encodeURIComponent(nom)}%0AEmail: ${encodeURIComponent(email)}%0ATéléphone: ${encodeURIComponent(telephone)}%0AService: ${encodeURIComponent(service)}%0ADate souhaitée: ${encodeURIComponent(date)}%0AMessage: ${encodeURIComponent(message)}`;
+    const whatsappMessage = `Bonjour JA Lab Studio, je souhaite prendre un rendez-vous.%0A%0ANom: ${encodeURIComponent(nom)}%0AEmail: ${encodeURIComponent(email)}%0ATéléphone: ${encodeURIComponent(telephone)}%0AService: ${encodeURIComponent(service)}%0ADate souhaitée: ${encodeURIComponent(date)}%0AHeure souhaitée: ${encodeURIComponent(heure)}`;
 
     formMessage.textContent = `Merci ${nom} ! Votre demande est prête. Vous allez être redirigé vers WhatsApp pour l'envoyer à JA Lab Studio.`;
 
