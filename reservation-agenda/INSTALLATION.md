@@ -79,3 +79,32 @@ Le formulaire fonctionne déjà, mais **par courriel seulement** (service FormSu
 2. FormSubmit envoie à jalabstudio@gmail.com un courriel **« Activate Form »** : cliquez sur le bouton pour activer le formulaire
    (regardez dans les indésirables si vous ne le voyez pas).
 3. Ensuite, chaque demande arrive dans Gmail. Si elle tombe dans les indésirables, marquez-la « Non spam ».
+
+---
+
+## Remplir automatiquement le tableau comptable (Google Sheets)
+
+Avec ce réglage, chaque réservation du site ajoute aussi une ligne dans l’onglet **Séances** du tableau comptable,
+avec la date, le client, son contact, le type de séance et le suivi **« À confirmer »**.
+Le montant facturé et le montant encaissé restent à compléter par vous, une fois le prix confirmé.
+
+1. **Mettre le tableau dans Google Drive** (compte jalabstudio@gmail.com) :
+   - sur <https://drive.google.com>, cliquez sur **Nouveau**, puis **Importer un fichier**, et choisissez `Comptabilite-JA-Lab-Studio.xlsx` ;
+   - double-cliquez sur le fichier pour l’ouvrir, puis faites **Fichier**, **Enregistrer au format Google Sheets**.
+     C’est indispensable : le script ne peut pas écrire dans un fichier resté au format Excel ;
+   - dans la copie Google Sheets qui s’ouvre, vérifiez que le **Tableau de bord** affiche bien **545,83 $** ;
+   - copiez l’adresse de la page (elle commence par `https://docs.google.com/spreadsheets/d/`).
+2. **Mettre à jour le script** sur <https://script.google.com> :
+   - remplacez tout le code par le nouveau `Code.gs`, puis collez l’adresse copiée entre les guillemets de la ligne
+     `SHEET_URL: ''` (exemple : `SHEET_URL: 'https://docs.google.com/spreadsheets/d/…/edit'`) ;
+   - cliquez sur 💾 **Enregistrer**.
+3. **Autoriser** : choisissez la fonction **autoriser**, puis cliquez sur **▶ Exécuter**. Google demande en plus l’accès à Google Sheets :
+   cliquez sur **Paramètres avancés**, puis **Accéder à…**, puis **Autoriser**.
+   Le journal doit afficher « Tableau comptable : … — onglet Séances trouvé ».
+4. **Publier la nouvelle version** : cliquez sur **Déployer**, puis **Gérer les déploiements**, puis sur le crayon ✏️.
+   Dans **Version**, choisissez **Nouvelle version**, puis cliquez sur **Déployer**. L’adresse `/exec` ne change pas : rien à modifier sur le site.
+5. **Tester** : faites une réservation sur le site. Une ligne « À confirmer » apparaît dans l’onglet Séances,
+   et le courriel du studio indique le numéro de la ligne.
+
+Si le tableau est introuvable, la réservation fonctionne quand même (agenda et courriels).
+Le courriel du studio affiche alors « ATTENTION : pas ajoutée au tableau comptable ».

@@ -7,7 +7,9 @@
  * À chaque demande envoyée depuis le site :
  *   1. un évènement « À confirmer » est ajouté au Google Agenda du studio ;
  *   2. un courriel détaillé est envoyé à jalabstudio@gmail.com (bouton « Répondre » = répondre au client) ;
- *   3. un courriel de confirmation de réception est envoyé au client.
+ *   3. un courriel de confirmation de réception est envoyé au client ;
+ *   4. (facultatif) une ligne « À confirmer » est ajoutée dans l'onglet « Séances » du tableau comptable
+ *      Google Sheets, si son lien est collé dans CONFIG.SHEET_URL ci-dessous.
  */
 
 var CONFIG = {
@@ -23,12 +25,23 @@ var CONFIG = {
     'Soirée':     ['18:00', '21:00']
   },
   MAX_PER_HOUR: 30,          // anti-abus : nombre maximum de demandes par heure
-  MAX_PER_EMAIL_PER_HOUR: 3
+  MAX_PER_EMAIL_PER_HOUR: 3,
+  // Lien de votre tableau comptable Google Sheets (celui qui contient l'onglet « Séances »).
+  // Collez-le entre les guillemets. Laissez vide pour ne pas remplir le tableau.
+  SHEET_URL: ''
 };
 
 var SERVICES = ['Shooting en studio', 'Mariage', 'Anniversaire', 'Couverture d’évènements', 'Séance personnalisée'];
 var MOMENTS = ['Indifférent', 'Matin', 'Après-midi', 'Soirée'];
 var LIEUX = ['En studio', 'Sur le lieu de l’évènement', 'En extérieur', 'À définir ensemble'];
+// Type de séance inscrit dans le tableau comptable selon le choix fait sur le site
+var TYPES_SITE = {
+  'Shooting en studio': 'Séance photo individuelle (studio)',
+  'Mariage': 'Couverture évènementielle (à partir de)',
+  'Anniversaire': 'Couverture évènementielle (à partir de)',
+  'Couverture d’évènements': 'Couverture évènementielle (à partir de)',
+  'Séance personnalisée': 'Autre'
+};
 var JOURS = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'];
 var MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 
@@ -109,6 +122,12 @@ function processBooking_(d) {
   }
   try { event.setColor(CONFIG.EVENT_COLOR); } catch (ignored) {}
 
+  // 1 bis. Tableau comptable (onglet « Séances »)
+  var compta = ajouterSeance_(d);
+  var comptaTexte = !compta.configure ? ''
+    : compta.ok ? 'Ajoutée au tableau comptable (onglet Séances, ligne ' + compta.ligne + ', suivi « À confirmer »).'
+    : 'ATTENTION : pas ajoutée au tableau comptable (' + compta.raison + '). Ajoutez-la à la main.';
+
   // 2. Courriel au studio
   var tableau = lignes.map(function (l) {
     return '<tr><th align="left" style="padding:8px 14px;background:#f6f2ea;border:1px solid #e4dccd;font-weight:600;white-space:nowrap;vertical-align:top">'
@@ -120,12 +139,14 @@ function processBooking_(d) {
     replyTo: d.email,
     name: 'Site ' + CONFIG.STUDIO_NAME,
     subject: 'Nouveau rendez-vous : ' + d.service + ' – ' + dateTexte + ' – ' + d.nom,
-    body: 'Nouvelle demande de rendez-vous (ajoutée à votre agenda, à confirmer).\n\n'
+    body: 'Nouvelle demande de rendez-vous (ajoutée à votre agenda, à confirmer).\n'
+      + (comptaTexte ? comptaTexte + '\n' : '') + '\n'
       + lignes.map(function (l) { return l[0] + ' : ' + l[1]; }).join('\n')
       + '\n\nRépondez à ce courriel pour écrire directement au client.',
     htmlBody: '<div style="font-family:Arial,sans-serif;font-size:15px;color:#141312;max-width:640px">'
       + '<h2 style="font-family:Georgia,serif;font-weight:normal">Nouvelle demande de rendez-vous</h2>'
       + '<p>✅ Ajoutée à votre <strong>Google Agenda</strong> le ' + esc_(dateTexte) + ' (en jaune, <em>à confirmer</em>).</p>'
+      + (comptaTexte ? '<p>' + (compta.ok ? '📊 ' : '⚠️ ') + esc_(comptaTexte) + '</p>' : '')
       + '<table style="border-collapse:collapse;width:100%">' + tableau + '</table>'
       + '<p style="margin-top:18px">Répondez simplement à ce courriel pour écrire au client' + telLink + '.</p>'
       + '<p style="color:#6a645b;font-size:13px">Reçue par le site le ' + esc_(recu) + '.</p></div>'
@@ -155,6 +176,42 @@ function processBooking_(d) {
       + '<p>Pour toute question&nbsp;: +1 581 246 4916 / +1 581 525 7379, ou répondez simplement à ce courriel.</p>'
       + '<p>À bientôt,<br><strong>JA Lab Studio</strong><br><em>Une image, un reflet</em> · Rimouski</p></div>'
   });
+}
+
+/* ---------------- Tableau comptable ---------------- */
+
+/** Ajoute la demande dans la première ligne libre de l'onglet « Séances » (colonnes B à E, O et P). */
+function ajouterSeance_(d) {
+  if (!CONFIG.SHEET_URL) return { configure: false, ok: false };
+  try {
+    var sh = SpreadsheetApp.openByUrl(CONFIG.SHEET_URL).getSheetByName('Séances');
+    if (!sh) throw new Error('onglet « Séances » introuvable');
+    var first = 7;
+    var last = Math.max(sh.getLastRow(), first);
+    var clients = sh.getRange(first, 3, last - first + 1, 1).getValues();
+    var row = last + 1;
+    for (var i = 0; i < clients.length; i++) {
+      if (String(clients[i][0]).trim() === '') { row = first + i; break; }
+    }
+    var jour = Utilities.parseDate(d.date + ' 12:00', CONFIG.TIMEZONE, 'yyyy-MM-dd HH:mm');
+    var contact = [d.telephone, d.email].filter(function (x) { return x; }).join(' · ');
+    var recu = Utilities.formatDate(new Date(), CONFIG.TIMEZONE, 'yyyy-MM-dd');
+    var notes = 'Demande du site le ' + recu + ' : ' + d.service + ' · ' + d.moment + ' · ' + d.lieu
+      + (d.personnes ? ' · ' + d.personnes + ' pers.' : '') + (d.message ? ' · « ' + d.message + ' »' : '');
+    sh.getRange(row, 2, 1, 4).setValues([[jour, sansFormule_(d.nom), sansFormule_(contact),
+      TYPES_SITE[d.service] || 'Autre']]);
+    sh.getRange(row, 15, 1, 2).setValues([['À confirmer', sansFormule_(notes)]]);
+    return { configure: true, ok: true, ligne: row };
+  } catch (err) {
+    console.error(err);
+    return { configure: true, ok: false, raison: String(err && err.message || err) };
+  }
+}
+
+/** Empêche un texte saisi sur le site d'être interprété comme une formule dans le tableau. */
+function sansFormule_(v) {
+  v = String(v == null ? '' : v);
+  return /^[=+\-@]/.test(v) ? "'" + v : v;
 }
 
 /* ---------------- Outils ---------------- */
@@ -233,6 +290,13 @@ function json_(obj) {
 /** Étape d'installation : lancez cette fonction une fois pour autoriser l'accès à l'agenda et aux courriels. */
 function autoriser() {
   var cal = CalendarApp.getDefaultCalendar();
+  if (CONFIG.SHEET_URL) {
+    var ss = SpreadsheetApp.openByUrl(CONFIG.SHEET_URL);
+    console.log('Tableau comptable : ' + ss.getName() + ' — onglet Séances '
+      + (ss.getSheetByName('Séances') ? 'trouvé' : 'INTROUVABLE'));
+  } else {
+    console.log('Tableau comptable : SHEET_URL vide, non utilisé.');
+  }
   console.log('Agenda : ' + cal.getName() + ' — courriels restants aujourd’hui : ' + MailApp.getRemainingDailyQuota());
 }
 
